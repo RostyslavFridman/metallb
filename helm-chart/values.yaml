@@ -77,3 +77,4 @@ speaker:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  interfaces: []

@@ -37,6 +37,9 @@ spec:
         imagePullPolicy: {{ .Values.speaker.image.pullPolicy }}
         args:
         - --port=7472
+{{- if .Values.speaker.interfaces }}
+        - --bind-interfaces={{ join "," .Values.speaker.interfaces }}
+{{- end }}
         - --config={{ template "metallb.configMapName" . }}
         env:
         - name: METALLB_NODE_NAME

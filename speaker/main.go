@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"go.universe.tf/metallb/internal/bgp"
 	"go.universe.tf/metallb/internal/config"
@@ -55,6 +56,7 @@ func main() {
 
 	var (
 		myNode = flag.String("node-name", "", "name of this Kubernetes node")
+		ifaces = flag.String("bind-interfaces", "", "bind interfaces; empty value starts announcers on all interfaces")
 		port   = flag.Int("port", 80, "HTTP listening port")
 		config = flag.String("config", "config", "Kubernetes ConfigMap containing MetalLB's configuration")
 	)
@@ -71,10 +73,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	bindInterfaces := make([]string, 0)
+	if *ifaces != "" {
+		bindInterfaces = strings.Split(*ifaces, ",")
+	}
+
 	// Setup all clients and speakers, config decides what is being done runtime.
 	ctrl, err := newController(controllerConfig{
-		MyNode: *myNode,
-		Logger: logger,
+		MyNode:         *myNode,
+		Logger:         logger,
+		BindInterfaces: bindInterfaces,
 	})
 	if err != nil {
 		logger.Log("op", "startup", "error", err, "msg", "failed to create MetalLB controller")
@@ -116,8 +124,9 @@ type controller struct {
 }
 
 type controllerConfig struct {
-	MyNode string
-	Logger log.Logger
+	MyNode         string
+	Logger         log.Logger
+	BindInterfaces []string
 
 	// For testing only, and will be removed in a future release.
 	// See: https://github.com/google/metallb/issues/152.
@@ -133,7 +142,7 @@ func newController(cfg controllerConfig) (*controller, error) {
 	}
 
 	if !cfg.DisableLayer2 {
-		a, err := layer2.New(cfg.Logger)
+		a, err := layer2.New(cfg.Logger, cfg.BindInterfaces...)
 		if err != nil {
 			return nil, fmt.Errorf("making layer2 announcer: %s", err)
 		}

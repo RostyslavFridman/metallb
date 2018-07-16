@@ -10,7 +10,8 @@ import (
 
 // Announce is used to "announce" new IPs mapped to the node's MAC address.
 type Announce struct {
-	logger log.Logger
+	logger         log.Logger
+	bindInterfaces []string
 
 	sync.RWMutex
 	arps   map[int]*arpResponder
@@ -20,12 +21,13 @@ type Announce struct {
 }
 
 // New returns an initialized Announce.
-func New(l log.Logger) (*Announce, error) {
+func New(l log.Logger, ifaces ...string) (*Announce, error) {
 	ret := &Announce{
-		logger: l,
-		arps:   map[int]*arpResponder{},
-		ndps:   map[int]*ndpResponder{},
-		ips:    make(map[string]net.IP),
+		logger:         l,
+		bindInterfaces: ifaces,
+		arps:           map[int]*arpResponder{},
+		ndps:           map[int]*ndpResponder{},
+		ips:            make(map[string]net.IP),
 	}
 	go ret.interfaceScan()
 
@@ -62,6 +64,11 @@ func (a *Announce) updateInterfaces() {
 		if ifi.Flags&net.FlagUp == 0 {
 			continue
 		}
+
+		if len(a.bindInterfaces) > 0 && !isBindInterface(ifi.Name, a.bindInterfaces) {
+			continue
+		}
+
 		if ifi.Flags&net.FlagBroadcast != 0 {
 			keepARP[ifi.Index] = true
 		}
@@ -213,3 +220,12 @@ const (
 	dropReasonAnnounceIP
 	dropReasonNotLeader
 )
+
+func isBindInterface(interfaceName string, bindInterfaces []string) bool {
+	for _, b := range bindInterfaces {
+		if b == interfaceName {
+			return true
+		}
+	}
+	return false
+}
